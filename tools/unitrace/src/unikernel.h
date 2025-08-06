@@ -12,8 +12,8 @@
   #include <CL/cl.h>
   #include <CL/cl_ext_private.h>
 #endif /* BUILD_WITH_OPENCL */
-#include <level_zero/layers/zel_tracing_api.h>
-
+//#include <level_zero/layers/zel_tracing_api.h>
+#include <atomic>
 #define KERNEL_ID_INVALID		0
 #define KERNEL_INSTANCE_ID_INVALID	0
 
@@ -49,12 +49,10 @@ struct ZeKernelCommandExecutionRecord {
   uint64_t kernel_command_id_;
   uint64_t start_time_;
   uint64_t end_time_;
-  ze_device_handle_t device_;
   size_t mem_size_;
   int32_t tile_;
   uint32_t engine_ordinal_;
   uint32_t engine_index_;
-  ze_group_count_t group_count_;
   bool implicit_scaling_;
 };
 
@@ -65,11 +63,6 @@ struct ClKernelCommandExecutionRecord {
   uint64_t kernel_command_id_;
   uint64_t start_time_;
   uint64_t end_time_;
-#if BUILD_WITH_OPENCL
-  cl_device_id device_;
-  cl_device_pci_bus_info_khr pci_;
-  cl_command_queue queue_;
-#endif /* BUILD_WITH_OPENCL */
   // size_t mem_size_;
   // uint32_t engine_ordinal_;
   // uint32_t engine_index_;

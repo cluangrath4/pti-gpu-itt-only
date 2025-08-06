@@ -10,7 +10,7 @@
 
 #include "utils.h"
 #include <iostream>
-
+#include <cstring>
 extern char **environ;
 
 class UniController{

@@ -8,32 +8,68 @@ list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 SetCompilerFlags()
 SetBuildType()
 
-set(BUILD_WITH_ITT 1) # Default value is 1
+if (NOT DEFINED BUILD_WITH_ITT)
+  set(BUILD_WITH_ITT 1) # Defaul value is 1
+endif()
+
+if (NOT DEFINED BUILD_WITH_XPTI)
+  set(BUILD_WITH_XPTI 1) # Defaul value is 1
+endif()
+
+if (NOT DEFINED BUILD_WITH_OPENCL)
+  set(BUILD_WITH_OPENCL 1) # Defaul value is 1
+endif()
+
+if (DEFINED BUILD_WITH_L0 AND BUILD_WITH_L0 STREQUAL "0")
+  message(FATAL_ERROR "BUILD_WITH_L0=0 is not supported. The unitrace tool can't be built without Level Zero")
+endif()
+
+if (BUILD_WITH_MPI AND BUILD_WITH_ITT STREQUAL "0")
+  message(FATAL_ERROR "BUILD_WITH_ITT=0 and BUILD_WITH_MPI=1 is not a valid configuration for unitrace tool.")
+endif()
+
 add_compile_definitions(BUILD_WITH_ITT=${BUILD_WITH_ITT})
+add_compile_definitions(BUILD_WITH_XPTI=${BUILD_WITH_XPTI})
+add_compile_definitions(BUILD_WITH_OPENCL=${BUILD_WITH_OPENCL})
+add_compile_definitions(BUILD_WITH_L0=1)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -fvisibility=default")
+# Tool Library
+macro(FindHeadersPath TARGET L0_GEN_SCRIPT GEN_FILE_NAME custom_target)
+  find_path(L0_INC_PATH
+    NAMES level_zero
+    PATHS ENV CPATH)
+  if (NOT L0_INC_PATH)
+    message(FATAL_ERROR
+      "Level Zero headers path is not found.\n"
+      "You may need to install oneAPI Level Zero Driver to fix this issue.")
+  else()
+    message(STATUS "Level Zero headers are found at ${L0_INC_PATH}")
+  endif()
 
-# Simplified macro to call a generator script.
-# The script is now passed the FULL output file path.
-macro(GenerateFile TARGET GEN_SCRIPT GEN_FILE_NAME custom_target)
-  set(OUTPUT_FILE_PATH "${CMAKE_BINARY_DIR}/${GEN_FILE_NAME}")
+  set(L0_GEN_INC_PATH "${CMAKE_BINARY_DIR}")
+  set(OCL_DIR_PATH "${CMAKE_BINARY_DIR}/CL")
   add_custom_target(${custom_target} ALL
-                    DEPENDS ${OUTPUT_FILE_PATH})
-  add_custom_command(OUTPUT ${OUTPUT_FILE_PATH}
-                     COMMAND "${Python_EXECUTABLE}" ${GEN_SCRIPT} ${OUTPUT_FILE_PATH})
+                    DEPENDS ${L0_GEN_INC_PATH}/${GEN_FILE_NAME})
+  add_custom_command(OUTPUT ${L0_GEN_INC_PATH}/${GEN_FILE_NAME}
+                     COMMAND "${Python_EXECUTABLE}" ${L0_GEN_SCRIPT} ${L0_GEN_INC_PATH} "${L0_INC_PATH}/level_zero" "${OCL_DIR_PATH}")
   target_include_directories(${TARGET}
-    PUBLIC "${CMAKE_BINARY_DIR}")
-  add_dependencies(${TARGET} ${custom_target})
+    PUBLIC "${L0_GEN_INC_PATH}")
+  add_dependencies(${TARGET}
+    ${custom_target})
+  add_dependencies(${custom_target} level_zero_headers) # level_zero_headers target added in GetLevelZeroHeaders macro
 endmacro()
 
 # Get Git Commit Hash
 macro(GetGitCommitHash TARGET GET_COMMIT_HASH_SCRIPT COMMIT_HASH_FILE_NAME target)
+
   add_custom_target(${target} ALL DEPENDS ${CMAKE_BINARY_DIR}/${COMMIT_HASH_FILE_NAME})
   add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/${COMMIT_HASH_FILE_NAME}
                      COMMAND "${Python_EXECUTABLE}" ${GET_COMMIT_HASH_SCRIPT} ${CMAKE_BINARY_DIR} ${COMMIT_HASH_FILE_NAME})
   add_dependencies(${TARGET} ${target})
 endmacro()
 
+# if (${BUILD_WITH_ITT})
+# Download itt source from github repo
 set(ITT_HASH 6ddf03848b46f78a8d2cbe596cbe1b5e2602005c)
 execute_process(COMMAND "${Python_EXECUTABLE}" ${PROJECT_SOURCE_DIR}/scripts/get_itt.py ${CMAKE_BINARY_DIR} ${CMAKE_BINARY_DIR} ${ITT_HASH}
   RESULT_VARIABLE result
@@ -42,6 +78,7 @@ execute_process(COMMAND "${Python_EXECUTABLE}" ${PROJECT_SOURCE_DIR}/scripts/get
 if (NOT result EQUAL 0)
   message(FATAL_ERROR "Error occurred while building ITT component")
 endif()
+# endif()
 
 add_library(unitrace_tool SHARED
   "${PROJECT_SOURCE_DIR}/src/tracer.cc")
@@ -52,26 +89,70 @@ target_include_directories(unitrace_tool
   PRIVATE "${ONEAPI_COMPILER_HOME}/include"
   PRIVATE "${PROJECT_SOURCE_DIR}/src"
   PRIVATE "${PROJECT_SOURCE_DIR}/../utils"
-  PRIVATE "${PROJECT_SOURCE_DIR}/../../utils")
+  PRIVATE "${PROJECT_SOURCE_DIR}/../../utils"
+  PRIVATE "${PROJECT_SOURCE_DIR}/src/opencl"
+  //PRIVATE "${PROJECT_SOURCE_DIR}/src/levelzero")
 
-target_include_directories(unitrace_tool
-  PRIVATE "${PROJECT_SOURCE_DIR}/src/xpti")
-
+# if (BUILD_WITH_ITT)
 target_include_directories(unitrace_tool
   PRIVATE "${PROJECT_SOURCE_DIR}/src/itt"
   PRIVATE "${CMAKE_BINARY_DIR}/ittheaders")
+# endif()
 
+target_compile_definitions(unitrace_tool PUBLIC PTI_LEVEL_ZERO=1)
 if(CMAKE_INCLUDE_PATH)
   target_include_directories(unitrace_tool
     PUBLIC "${CMAKE_INCLUDE_PATH}")
 endif()
 
-GenerateFile(unitrace_tool "${PROJECT_SOURCE_DIR}/scripts/gen_tracing_common_header.py" "common_header.gen" gen_common_header)
-GenerateFile(unitrace_tool "${PROJECT_SOURCE_DIR}/scripts/gen_tracing_callbacks.py" "tracing.gen" gen_tracing_header)
+# Re-add XPTI stuff? See if it fixes
+if (BUILD_WITH_XPTI)
+  find_package(Xptifw REQUIRED)
+  if (Xptifw_FOUND)
+    message(STATUS "XPTI found")
+    target_include_directories(unitrace_tool PRIVATE "${Xptifw_INCLUDE_DIR}")
+    if(WIN32)
+      target_link_libraries(unitrace_tool ${Xptifw_LIBRARY})
+    else()
+      target_link_libraries(unitrace_tool xptifw)
+    endif()
+  endif()
+endif()
+
+if (BUILD_WITH_XPTI)
+  target_include_directories(unitrace_tool
+    PRIVATE "${PROJECT_SOURCE_DIR}/src/xpti")
+endif()
+
+
+if (BUILD_WITH_OPENCL)
+  FindOpenCLLibrary(unitrace_tool)
+  FindOpenCLHeaders(unitrace_tool)
+  GetOpenCLTracingHeaders(unitrace_tool)
+endif()
+
+set (LEVEL_ZERO_COMMIT_ID "v1.21.6")
+GetLevelZeroHeaders(unitrace_tool)
+
+FindHeadersPath(unitrace_tool "${PROJECT_SOURCE_DIR}/scripts/gen_tracing_common_header.py" "common_header.gen" gen_common_header)
+FindHeadersPath(unitrace_tool "${PROJECT_SOURCE_DIR}/scripts/gen_tracing_callbacks.py" "tracing.gen" gen_tracing_header)
+FindHeadersPath(unitrace_tool "${PROJECT_SOURCE_DIR}/scripts/gen_l0_loader.py" "l0_loader.gen" gen_l0_loader_header)
+
+#idk what this is
+if (TARGET cl_tracing_headers)
+  add_dependencies(gen_common_header
+      cl_tracing_headers)
+  add_dependencies(gen_tracing_header
+      cl_tracing_headers)
+endif()
+
+target_include_directories(unitrace_tool PRIVATE "${L0_INC_PATH}")
 
 # Loader
+
 add_executable(unitrace "${PROJECT_SOURCE_DIR}/src/unitrace.cc")
 
+# if(UNIX)
 include(CMakePushCheckState)
 cmake_push_check_state()
 cmake_reset_check_state()
@@ -111,16 +192,27 @@ set(code
 endif()
 cmake_pop_check_state()
 target_compile_definitions(unitrace PRIVATE CXX_STD_FILESYSTEM_EXPERIMENTAL=${CXX_STD_FILESYSTEM_EXPERIMENTAL})
+# endif()
 
+# Going to keep this in for the lols
+set(_use_mpi 1)
+
+# if (BUILD_WITH_MPI)
+#   set(_use_mpi 1)
+# else()
+set(_use_mpi 0)
+# endif()
 target_compile_definitions(unitrace PRIVATE BUILD_WITH_MPI=${_use_mpi})
 target_include_directories(unitrace
   PRIVATE "${CMAKE_BINARY_DIR}"
   PRIVATE "${PROJECT_SOURCE_DIR}/src"
+  PRIVATE "${PROJECT_SOURCE_DIR}/src/levelzero"
   PRIVATE "${PROJECT_SOURCE_DIR}/../utils"
   PRIVATE "${PROJECT_SOURCE_DIR}/../../utils")
 
 target_link_libraries(unitrace pthread dl)
 
+GetLevelZeroHeaders(unitrace)
 GetGitCommitHash(unitrace "${PROJECT_SOURCE_DIR}/scripts/get_commit_hash.py" "unitrace_commit_hash.h" get_git_commit_hash_unitrace)
 GetGitCommitHash(unitrace_tool "${PROJECT_SOURCE_DIR}/scripts/get_commit_hash.py" "unitrace_tool_commit_hash.h" get_git_commit_hash_unitrace_tool)
 
@@ -134,8 +226,13 @@ add_test(NAME test_unitrace COMMAND "${Python_EXECUTABLE}" "${PROJECT_SOURCE_DIR
 # Clearning files only for release build, for any other build types lets skip deletion for better debuggability
 string(TOLOWER "${CMAKE_BUILD_TYPE}" LOWER_CMAKE_BUILD_TYPE)
 if(NOT LOWER_CMAKE_BUILD_TYPE STREQUAL "debug")
+  # if(UNIX)
   add_custom_command(TARGET unitrace_tool POST_BUILD COMMAND "rm" "-rf" "tracing.gen")
   add_custom_command(TARGET unitrace_tool POST_BUILD COMMAND "rm" "-rf" "common_header.gen")
+  # else()
+  #   add_custom_command(TARGET unitrace_tool POST_BUILD COMMAND "del" "tracing.gen")
+  #   add_custom_command(TARGET unitrace_tool POST_BUILD COMMAND "del" "common_header.gen")
+  # endif()
 endif()
 
 configure_file(${PROJECT_SOURCE_DIR}/scripts/uniview.py ${CMAKE_BINARY_DIR}/scripts/uniview.py COPYONLY)
@@ -160,3 +257,7 @@ install(PROGRAMS ${PROJECT_SOURCE_DIR}/scripts/metrics/analyzeperfmetrics.py DES
 install(PROGRAMS ${PROJECT_SOURCE_DIR}/scripts/metrics/addrasm.py DESTINATION bin)
 install(DIRECTORY ${PROJECT_SOURCE_DIR}/scripts/metrics/config DESTINATION etc/unitrace/metrics)
 install(DIRECTORY ${PROJECT_SOURCE_DIR}/scripts/summary DESTINATION bin)
+
+# if (BUILD_WITH_MPI)
+#   install(TARGETS unitrace_mpi RUNTIME)
+# endif()

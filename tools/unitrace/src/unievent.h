@@ -7,6 +7,7 @@
 
 #ifndef PTI_TOOLS_UNITRACE_UNIEVENT_H
 #define PTI_TOOLS_UNITRACE_UNIEVENT_H
+#include "common_header.gen"
 
 enum EVENT_TYPE {
   EVENT_NULL = 0,

@@ -15,6 +15,11 @@
 #include <thread>
 #include <stack>
 #include <tuple>
+#include <map>
+#include <set>
+#include <utility>
+#include "unitimer.h"
+#include "unimemory.h"
 
 #include "unicontrol.h"
 #include "unievent.h"
@@ -87,9 +92,9 @@ class IttCollector {
   static IttCollector *Create(OnIttLoggingCallback callback = nullptr) {
     IttCollector* collector = new IttCollector(callback);
 
-    if (collector == nullptr) {
-      std::cerr << "[WARNING] Unable to create ITT tracer" << std::endl;
-    }
+    //if (collector == nullptr) {
+    //std::cerr << "[WARNING] Unable to create ITT tracer" << std::endl;
+      //}
 
     return collector;
   }
@@ -361,7 +366,7 @@ ITT_EXTERN_C void ITTAPI __itt_task_end(const __itt_domain *domain)
     return;
   }
 
-  if (!task_desc.empty() && !strcmp(task_desc.top().domain, domain->nameA)) {
+  if (!task_desc.empty() && domain != nullptr && !strcmp(task_desc.top().domain, domain->nameA)) {
     char task[1057];
 
     snprintf(task, 1056, "%s::%s", task_desc.top().domain, task_desc.top().name);

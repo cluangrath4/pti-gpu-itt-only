@@ -1,4 +1,4 @@
-//==============================================================
+//=========================A=====================================
 // Copyright (C) Intel Corporation
 //
 // SPDX-License-Identifier: MIT
@@ -13,13 +13,8 @@
 #include "version.h"
 #include "unitrace_tool_commit_hash.h"
 
-#ifdef _WIN32
-#define CONSTRUCTOR
-#define DESTRUCTOR
-#else /* _WIN32 */
 #define CONSTRUCTOR __attribute__((constructor))
 #define DESTRUCTOR __attribute__((destructor))
-#endif /* _WIN32 */
 
 static UniTracer* tracer = nullptr;
 
@@ -262,7 +257,6 @@ void CONSTRUCTOR Init(void) {
     UniTimer::StartUniTimer();
     tracer = UniTracer::Create(ReadArgs());
   }
-
   if (utils::GetEnv("UNITRACE_FollowChildProcess") == "0") {
     // restore LD_PRELOAD from UNITRACE_LD_PRELOAD_OLD to prevent the unitrace library
     // from being loaded and this Init() function being called in a child process
@@ -271,30 +265,7 @@ void CONSTRUCTOR Init(void) {
     utils::SetEnv("LD_PRELOAD", oldpreload.c_str());
   }
 }
-
+  
 void DESTRUCTOR Fini(void) {
   Teardown();
 }
-
-#ifdef _WIN32
-BOOL WINAPI DllMain(
-    HINSTANCE hinstDLL,  // handle to DLL module
-    DWORD fdwReason,     // reason for calling function
-    LPVOID lpReserved)  // reserved
-{
-  switch (fdwReason)
-  {
-    case DLL_PROCESS_ATTACH:
-      Init();
-      break;
-    case DLL_THREAD_ATTACH:
-      break;
-    case DLL_THREAD_DETACH:
-      break;
-    case DLL_PROCESS_DETACH:
-      Fini();
-      break;
-  }
-  return TRUE;
-}
-#endif /* _WIN32 */
