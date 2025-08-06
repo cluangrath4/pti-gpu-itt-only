@@ -34,21 +34,13 @@
 
 static inline std::string GetHostName(void) {
   char hname[256];
-#ifdef _WIN32
-  DWORD size = sizeof(hname);
-  GetComputerNameA(hname, &size);
-#else  /* _WIN32 */
   gethostname(hname, sizeof(hname));
-#endif /* _WIN32 */
   hname[255] = 0;
   return hname;
 }
 
-#ifdef _WIN32
-#define strdup _strdup
-#else /* _WIN32 */
 #define strdup strdup
-#endif /* _WIN32 */
+
 
 static std::string EncodeURI(const std::string &input) {
   std::ostringstream encoded;
@@ -551,7 +543,7 @@ class ChromeLogger {
       return options_.CheckFlag(option);
     }
 
-    static void XptiLoggingCallback(EVENT_TYPE etype, const char *name, uint64_t start_ts, uint64_t end_ts) {
+  /* static void XptiLoggingCallback(EVENT_TYPE etype, const char *name, uint64_t start_ts, uint64_t end_ts) {
       if (!thread_local_buffer_.IsFinalized()) {
         HostEventRecord *rec = thread_local_buffer_.GetHostEvent();
         rec->type_ = etype;
@@ -571,7 +563,7 @@ class ChromeLogger {
         rec->id_ = 0;
         thread_local_buffer_.BufferHostEvent();
       }
-    }
+      }*/
 
     static void IttLoggingCallback(const char *name, uint64_t start_ts, uint64_t end_ts, IttArgs* metadata_args) {
       if (!thread_local_buffer_.IsFinalized()) {

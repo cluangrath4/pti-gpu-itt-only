@@ -13,8 +13,6 @@ def gen_enums(out_file):
   # common enums
   out_file.write("  UnknownTracingId,\n")
   out_file.write("  DummyTracingId,\n")
-  #xpti api id
-  out_file.write("  XptiTracingId,\n")
   #itt api id
   out_file.write("  IttTracingId,\n")
   #footer

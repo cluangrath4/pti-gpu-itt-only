@@ -19,8 +19,6 @@ def main():
     dst_file.write("// GENERATED FILE - DO NOT EDIT\n")
     dst_file.write("// L0/OCL functionality removed.\n")
     dst_file.write("//\n\n")
-    dst_file.write("#include \"ze_api.h\"\n")
-    dst_file.write("#include \"zel_tracing_api.h\"\n")
 
 if __name__ == "__main__":
   main()

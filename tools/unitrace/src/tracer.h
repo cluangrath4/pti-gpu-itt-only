@@ -66,7 +66,6 @@ class UniTracer {
 
     Report();
 
-#if BUILD_WITH_ITT
     if (itt_collector != nullptr){
       // Print CCL summary before deleting the object
       // If CCL summary is not enbled summary string will be empty
@@ -76,7 +75,7 @@ class UniTracer {
       }
       delete itt_collector;
     }
-#endif /* BUILD_WITH_ITT */
+
     if (CheckOption(TRACE_LOG_TO_FILE)) {
       std::cerr << "[INFO] Log is stored in " <<
         options_.GetLogFileName() << std::endl;
@@ -108,7 +107,6 @@ class UniTracer {
   }
 
   void Report() {
-    // All L0/OpenCL reporting logic removed.
     logger_.Log("\n");
   }
 
