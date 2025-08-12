@@ -12,6 +12,7 @@
 #include "unitrace_commit_hash.h"
 
 int ParseArgs() {
+  std::cout << "[unitrace launcher] Setting: INTEL_LIBITTNOTIFY64=libunitrace_tool.so" << std::endl;
   utils::SetEnv("UNITRACE_ChromeIttLogging", "1");
   utils::SetEnv("INTEL_LIBITTNOTIFY64", "libunitrace_tool.so");
   return 1;
@@ -45,6 +46,7 @@ int main(int argc, char *argv[]) {
   } else {
     preload = preload + ":" + lib_path;
   }
+  std::cout << "[unitrace launcher] Setting: LD_PRELOAD=" << preload << std::endl;
   utils::SetEnv("LD_PRELOAD", preload.c_str());
   ParseArgs();
   std::vector<char*> app_args;
@@ -52,6 +54,7 @@ int main(int argc, char *argv[]) {
     app_args.push_back(argv[i]);
   }
   app_args.push_back(nullptr);
+  std::cout << "[unitrace launcher] Launching: " << app_args[0] << std::endl;
   if (execvp(app_args[0], app_args.data())) {
     std::cerr << "[ERROR] Failed to launch target application: " << app_args[0] << std::endl;
   }
